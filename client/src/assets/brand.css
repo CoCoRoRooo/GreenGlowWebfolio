@@ -1,0 +1,183 @@
+/**
+ * client/src/assets/brand.css
+ * Feuille de style principale définissant la charte graphique.
+ * - Définit les variables CSS (couleurs, radius, ombres, transitions).
+ * - Personnalise l'apparence des composants Bootstrap (boutons, cartes, formulaires).
+ * - Ajoute des classes utilitaires pour l’UI.
+ */
+
+/* ─────────────── Variables globales ─────────────── */
+:root {
+  /* Couleurs principales de la marque */
+  --gg-primary: #10b981;
+  /* Vert émeraude (couleur dominante) */
+  --gg-primary-600: #059669;
+  /* Variante plus foncée du vert */
+  --gg-dark: #064e3b;
+  /* Vert foncé (texte, branding) */
+  --gg-text: #0f172a;
+  /* Gris très foncé (texte principal) */
+  --gg-muted: #6b7280;
+  /* Gris moyen (texte secondaire) */
+  --gg-ring: rgba(16, 185, 129, .35);
+  /* Effet focus sur les inputs */
+
+  /* Ombres (élévation visuelle) */
+  --gg-shadow-sm: 0 6px 16px rgba(2, 6, 23, .06);
+  --gg-shadow: 0 12px 30px rgba(2, 6, 23, .08);
+  --gg-shadow-lg: 0 18px 50px rgba(2, 6, 23, .10);
+
+  /* Rayon de bordure (arrondis) */
+  --gg-r: 16px;
+  --gg-r-lg: 22px;
+
+  /* Transitions (animation douce) */
+  --gg-tr: 180ms cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ─────────────── Reset global ─────────────── */
+* {
+  box-sizing: border-box
+}
+
+html,
+body {
+  scroll-behavior: smooth;
+  /* défilement fluide */
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--gg-text);
+  background: #fff;
+}
+
+/* ─────────────── Navbar ─────────────── */
+.navbar {
+  backdrop-filter: saturate(140%) blur(6px);
+  /* effet "frosted glass" */
+}
+
+.navbar-brand {
+  font-weight: 800;
+  color: var(--gg-dark) !important;
+  /* branding sombre */
+}
+
+/* Lien actif dans la sidebar admin */
+.nav .active {
+  background: rgba(16, 185, 129, .08);
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+
+/* ─────────────── Boutons ─────────────── */
+.btn-success {
+  --bs-btn-bg: var(--gg-primary);
+  --bs-btn-border-color: var(--gg-primary);
+  --bs-btn-hover-bg: var(--gg-primary-600);
+  --bs-btn-hover-border-color: var(--gg-primary-600);
+  border-radius: var(--gg-r);
+  box-shadow: var(--gg-shadow-sm);
+  transition: transform var(--gg-tr), box-shadow var(--gg-tr);
+}
+
+.btn-success:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--gg-shadow);
+}
+
+.btn-outline-success {
+  color: var(--gg-dark);
+  border-color: var(--gg-primary);
+  border-width: 2px;
+  border-radius: var(--gg-r);
+}
+
+/* ─────────────── Cartes ─────────────── */
+.card {
+  border: 0;
+  border-radius: var(--gg-r);
+  box-shadow: var(--gg-shadow-sm);
+  transition: transform var(--gg-tr), box-shadow var(--gg-tr);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--gg-shadow);
+}
+
+/* Styles spécifiques aux produits */
+.product-card .card-img-top {
+  height: 240px;
+  object-fit: cover;
+  border-top-left-radius: var(--gg-r);
+  border-top-right-radius: var(--gg-r);
+}
+
+.price {
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+/* ─────────────── Formulaires ─────────────── */
+.form-control:focus {
+  box-shadow: 0 0 0 .25rem var(--gg-ring);
+  border-color: var(--gg-primary);
+}
+
+/* ─────────────── Badges ─────────────── */
+.badge-gg {
+  background: var(--gg-primary);
+}
+
+/* ─────────────── Sections ─────────────── */
+.section {
+  padding: min(9vh, 84px) 0;
+}
+
+.section-header .kicker {
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--gg-primary);
+  font-weight: 700;
+}
+
+.section-header h1,
+.section-header h2 {
+  font-weight: 800;
+}
+
+/* ─────────────── Hero (page d’accueil) ─────────────── */
+.hero {
+  min-height: 70vh;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(255, 255, 255, .94)),
+    url('https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1800&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+}
+
+.hero .hero-card {
+  border-radius: var(--gg-r-lg);
+  box-shadow: var(--gg-shadow);
+  backdrop-filter: blur(6px);
+  /* effet vitré */
+}
+
+/* ─────────────── Utilitaires ─────────────── */
+.rounded-20 {
+  border-radius: var(--gg-r-lg);
+}
+
+.shadow-soft {
+  box-shadow: var(--gg-shadow-sm);
+}
+
+.text-muted {
+  color: var(--gg-muted) !important;
+}
+
+.footer a {
+  text-decoration: none;
+}

@@ -1,0 +1,198 @@
+/// ─────────────────────────────────────────────
+/// Prisma schema — Modélisation complète
+/// - Génère le client Prisma JS
+/// - Se connecte à PostgreSQL via DATABASE_URL
+/// - Définit les modèles (tables) et relations
+/// - Chaque @@index ou @@unique est expliqué
+/// ─────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// ──────────────────────────
+/// Model Product — Produits
+/// ──────────────────────────
+/// - slug unique pour URL (/product/:slug)
+/// - stock = quantité dispo
+/// - Relations : items (ventes), cartItems (paniers), reviews (avis)
+model Product {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique //  Index unique → chaque produit a un slug distinct
+  name        String
+  price       Float
+  category    String
+  img         String
+  description String
+  stock       Int      @default(50)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items     SaleItem[]
+  cartItems CartItem[]
+  reviews   Review[]
+}
+
+/// ──────────────────────────
+/// Model Sale — Vente passée
+/// ──────────────────────────
+/// - userId obligatoire
+/// - items = snapshot des prix/quantités
+/// - Index (userId, createdAt) → utile pour retrouver
+///   l’historique des ventes d’un utilisateur dans l’ordre chronologique
+model Sale {
+  id        Int        @id @default(autoincrement())
+  total     Float
+  createdAt DateTime   @default(now())
+  items     SaleItem[]
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt]) //  Optimise les requêtes "toutes les ventes d’un user triées par date"
+}
+
+/// ──────────────────────────
+/// Model SaleItem — Ligne vente
+/// ──────────────────────────
+/// - price = snapshot au moment T
+/// - Relation N:1 Sale + N:1 Product
+model SaleItem {
+  id        Int   @id @default(autoincrement())
+  saleId    Int
+  productId Int
+  qty       Int
+  price     Float
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+/// ──────────────────────────
+/// Model Portfolio — Galerie
+/// ──────────────────────────
+/// - tags = tableau de strings (Postgres TEXT[])
+/// - slug unique = identifiant lisible
+model Portfolio {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique //  Un seul élément du portfolio peut avoir ce slug
+  name        String
+  imageUrl    String
+  description String   @default("")
+  tags        String[] @default([])
+  createdAt   DateTime @default(now())
+}
+
+/// ──────────────────────────
+/// Model User — Utilisateur
+/// ──────────────────────────
+/// - email unique pour login
+/// - password hashé
+/// - admin = droits
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique //  Un seul compte par email
+  name      String?
+  password  String
+  admin     Boolean  @default(false)
+  carts     Cart[]
+  sales     Sale[]
+  reviews   Review[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// ──────────────────────────
+/// Model Cart — Panier
+/// ──────────────────────────
+/// - Un seul panier ACTIVE par utilisateur
+///   grâce à @@unique(userId, status)
+/// - Index (userId, status) → permet de retrouver rapidement
+///   le panier actif d’un utilisateur
+model Cart {
+  id        Int        @id @default(autoincrement())
+  user      User       @relation(fields: [userId], references: [id])
+  userId    Int
+  status    CartStatus @default(ACTIVE)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([userId, status]) //  Empêche plusieurs paniers ACTIVE pour le même user
+  @@index([userId, status]) //  Accélère la recherche du panier courant
+}
+
+/// ──────────────────────────
+/// Model CartItem — Ligne panier
+/// ──────────────────────────
+/// - clé unique (cartId, productId) → un produit
+///   n’apparaît qu’une seule fois par panier
+model CartItem {
+  id        Int @id @default(autoincrement())
+  cartId    Int
+  productId Int
+  qty       Int
+
+  cart    Cart    @relation(fields: [cartId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([cartId, productId]) //  Garantit l’unicité d’un produit dans un panier
+}
+
+/// Enum CartStatus — statut panier
+enum CartStatus {
+  ACTIVE
+  CHECKED_OUT
+}
+
+/// ──────────────────────────
+/// Model Faq — Questions fréquentes
+/// ──────────────────────────
+/// - Index (published, ordering) → pour lister
+///   uniquement les FAQ publiées et triées par ordre
+model Faq {
+  id        Int      @id @default(autoincrement())
+  question  String   @unique
+  answer    String
+  ordering  Int      @default(0)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([published, ordering]) //  Optimise la requête "toutes les FAQ publiées triées"
+}
+
+/// ──────────────────────────
+/// Model Review — Avis client
+/// ──────────────────────────
+/// - unique(userId, productId) → un seul avis par produit et par user
+/// - Index sur (published, stars) → rapide pour
+///   filtrer/afficher uniquement les avis visibles
+/// - Index sur (productId, published, stars) → utile
+///   pour afficher les avis d’un produit avec tri
+/// - Index sur (userId, createdAt) → retrouver les avis d’un user par date
+model Review {
+  id        Int      @id @default(autoincrement())
+  name      String?
+  text      String
+  stars     Int
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId]) //  Empêche un user de noter 2x le même produit
+  @@index([published, stars]) //  Rapide pour afficher uniquement les avis publiés + filtrer par note
+  @@index([productId, published, stars]) //  Rapide pour lister les avis d’un produit avec tri par étoiles
+  @@index([userId, createdAt]) //  Rapide pour afficher l’historique des avis d’un utilisateur
+}

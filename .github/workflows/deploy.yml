@@ -1,0 +1,107 @@
+name: Deploy to VPS (Docker Compose)
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: GreenGlowWebfolio
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare deployment bundle
+        run: |
+          set -e
+          mkdir -p deploy/server deploy/client
+          [ -d server ] && cp -r server/* deploy/server/ || true
+          [ -d client ] && cp -r client/* deploy/client/ || true
+          cp docker-compose.yml deploy/docker-compose.yml
+
+      - name: Upload bundle to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.VPS_HOST || secrets.VPS_HOST }}
+          username: ${{ vars.VPS_USER || secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ vars.VPS_SSH_PORT || secrets.VPS_SSH_PORT }}
+          source: "deploy/*"
+          target: "${{ vars.VPS_DIR || secrets.VPS_DIR }}"
+          strip_components: 1
+          overwrite: true
+          rm: true
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.VPS_HOST || secrets.VPS_HOST }}
+          username: ${{ vars.VPS_USER || secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ vars.VPS_SSH_PORT || secrets.VPS_SSH_PORT }}
+          request_pty: true
+          script_stop: true
+          script: |
+            set -euxo pipefail
+            trap 'echo "::error::FAILED at line $LINENO: $BASH_COMMAND" >&2' ERR || true
+
+            cd "${{ vars.VPS_DIR || secrets.VPS_DIR }}"
+            pwd; id; ls -la
+
+            # Choisir la commande compose
+            if docker compose version >/dev/null 2>&1; then
+              compose_cmd="docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              compose_cmd="docker-compose"
+            else
+              echo "::error::docker compose/docker-compose introuvable"; exit 1
+            fi
+
+            # Outils requis (openssl) — si 'sudo' demande un TTY, request_pty:true l'autorise
+            if ! command -v openssl >/dev/null 2>&1; then
+              if command -v sudo >/dev/null 2>&1; then
+                sudo apt-get update -y
+                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openssl
+              else
+                apt-get update -y || true
+                DEBIAN_FRONTEND=noninteractive apt-get install -y openssl || true
+              fi
+            fi
+
+            mkdir -p logs
+            test -w . || { echo "::error::No write permission in $(pwd)"; exit 1; }
+
+            # Créer .env si absent (utilise Environment vars/secrets si fournis, sinon fallback aléatoire)
+            if [ ! -f .env ]; then
+              echo "[deploy] Creating .env..."
+              DB_PASS="${{ vars.DB_PASSWORD || secrets.DB_PASSWORD || '' }}"
+              JWT_S="${{ secrets.JWT_SECRET || vars.JWT_SECRET || '' }}"
+              if [ -z "$DB_PASS" ]; then DB_PASS="$(openssl rand -hex 16)"; fi
+              if [ -z "$JWT_S" ]; then JWT_S="$(openssl rand -hex 32)"; fi
+
+              # Ecriture .env étape par étape avec vérifs
+              : > .env || { echo "::error::failed to create .env"; exit 1; }
+              printf '%s\n' "POSTGRES_DB=greenglow" >> .env || { echo "::error::write .env 1"; exit 1; }
+              printf '%s\n' "POSTGRES_USER=greenglow" >> .env || { echo "::error::write .env 2"; exit 1; }
+              printf '%s\n' "POSTGRES_PASSWORD=$DB_PASS" >> .env || { echo "::error::write .env 3"; exit 1; }
+              printf '%s\n' "DATABASE_URL=postgresql://greenglow:$DB_PASS@db:5432/greenglow?schema=public" >> .env || { echo "::error::write .env 4"; exit 1; }
+              printf '%s\n' "NODE_ENV=production" >> .env || { echo "::error::write .env 5"; exit 1; }
+              printf '%s\n' "PORT=5000" >> .env || { echo "::error::write .env 6"; exit 1; }
+              printf '%s\n' "JWT_SECRET=$JWT_S" >> .env || { echo "::error::write .env 7"; exit 1; }
+              printf '%s\n' "SEED_ON_START=true" >> .env || { echo "::error::write .env 8"; exit 1; }
+              printf '%s\n' "COOKIE_SECURE=false" >> .env
+
+              echo "[deploy] .env created"; ls -l .env
+            else
+              echo "[deploy] .env already exists, keeping it"
+            fi
+
+            # Déployer
+            $compose_cmd pull || true
+            $compose_cmd build
+            $compose_cmd up -d
+            $compose_cmd ps
+            $compose_cmd logs api --no-color --tail=120 || true
